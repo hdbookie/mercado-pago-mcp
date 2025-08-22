@@ -1,6 +1,6 @@
 # Mercado Pago MCP Server
 
-A comprehensive Model Context Protocol (MCP) server for Mercado Pago API integration. This server provides full payment processing capabilities, customer management, refunds, and more - going far beyond simple documentation search.
+A comprehensive Model Context Protocol (MCP) server for Mercado Pago API integration. This server provides 27+ tools for payment processing, PIX payments with QR codes, fraud detection, analytics, accounting exports, and much more - making any AI capable of handling complete payment operations.
 
 ## 🚀 Quick Install
 
@@ -71,7 +71,7 @@ Then in Claude Desktop config:
 
 ## Features
 
-### 🎯 Core Capabilities
+### 🎯 Core Capabilities (v1.0)
 
 - **Payment Operations**
   - Create payments
@@ -92,6 +92,71 @@ Then in Claude Desktop config:
   - Create checkout preferences
   - Generate payment links with custom URLs
   - Set expiration dates
+
+### 🚀 Advanced Features (v2.0)
+
+- **PIX Payments**
+  - Create PIX payments with QR codes
+  - Generate copy-paste PIX codes
+  - Set custom expiration times
+  
+- **Subscription Management**
+  - Create recurring subscriptions
+  - Update/pause/cancel subscriptions
+  - Manage subscription frequencies
+  
+- **Marketplace & Split Payments**
+  - Split payments between multiple sellers
+  - Configure platform fees
+  - Manage disbursements
+  
+- **Card Management**
+  - Save cards for future use
+  - List customer's saved cards
+  - Tokenized card payments
+  
+- **Batch Processing**
+  - Create multiple payments in bulk
+  - Batch status updates
+  - Bulk refund processing
+  
+- **Reports & Analytics**
+  - Generate payment reports
+  - Export data in multiple formats
+  - Date range filtering
+
+### 💼 Business Features (v3.0)
+
+- **Real-time Monitoring**
+  - Monitor payment status changes
+  - Configurable check intervals
+  - Status change notifications
+  
+- **Fraud Detection**
+  - Risk scoring system
+  - Pattern analysis
+  - Fraud indicators and recommendations
+  
+- **Analytics Dashboard**
+  - Revenue metrics and KPIs
+  - Payment method breakdowns
+  - Customer insights and trends
+  
+- **Accounting Integration**
+  - Export to QuickBooks format
+  - Export to Xero format
+  - Export to Sage format
+  - CSV export for custom systems
+  
+- **Tax Calculations**
+  - Brazilian tax calculations (ICMS, PIS, COFINS, ISS)
+  - Regional tax rates by state
+  - Product type tax differentiation
+  
+- **Payment Automation**
+  - Automatic retry for failed payments
+  - Payment reminder scheduling
+  - Smart retry strategies
   
 - **Testing Tools**
   - Webhook simulation
@@ -164,9 +229,11 @@ You can run both staging and production simultaneously:
 }
 ```
 
-## Available Tools
+## Available Tools (27+ Total)
 
-### create_payment
+### Core Payment Tools
+
+#### create_payment
 Create a new payment in Mercado Pago.
 
 **Parameters:**
@@ -262,7 +329,7 @@ Create a payment link (checkout preference).
 }
 ```
 
-### simulate_webhook
+#### simulate_webhook
 Simulate webhook notifications for testing.
 
 **Parameters:**
@@ -272,6 +339,99 @@ Simulate webhook notifications for testing.
   - payment.approved
   - payment.rejected
 - `paymentId` (string, required): Payment ID for the webhook
+
+### Advanced Payment Tools (v2.0+)
+
+#### create_pix_payment
+Create a PIX payment with QR code and copy-paste code.
+
+**Parameters:**
+- `amount` (number, required): Payment amount
+- `description` (string, required): Payment description
+- `payerEmail` (string, required): Payer's email
+- `expirationMinutes` (number, optional): Minutes until expiration
+
+#### create_subscription
+Create a recurring subscription.
+
+**Parameters:**
+- `title` (string, required): Subscription title
+- `amount` (number, required): Recurring amount
+- `frequency` (number, required): Billing frequency
+- `frequencyType` (string, required): 'days', 'months', or 'years'
+- `payerEmail` (string, required): Subscriber's email
+
+#### create_split_payment
+Create marketplace split payments between multiple sellers.
+
+**Parameters:**
+- `amount` (number, required): Total amount
+- `splits` (array, required): Array of split configurations with collectorId, amount, and fee
+
+#### batch_create_payments
+Create multiple payments in a single batch operation.
+
+**Parameters:**
+- `payments` (array, required): Array of payment objects
+- `processInParallel` (boolean, optional): Process payments in parallel
+
+### Business Intelligence Tools (v3.0+)
+
+#### get_analytics_dashboard
+Get comprehensive payment analytics and insights.
+
+**Parameters:**
+- `period` (string, optional): 'day', 'week', 'month', 'quarter', 'year'
+- `metrics` (array, optional): Specific metrics to include
+
+#### detect_fraud_risk
+Analyze a payment for fraud risk indicators.
+
+**Parameters:**
+- `paymentId` (string, required): Payment ID to analyze
+- `includeRecommendations` (boolean, optional): Include action recommendations
+
+#### monitor_payment_status
+Monitor a payment for status changes in real-time.
+
+**Parameters:**
+- `paymentId` (string, required): Payment ID to monitor
+- `intervalSeconds` (number, optional): Check interval
+- `maxChecks` (number, optional): Maximum number of checks
+
+#### export_to_accounting
+Export payment data to accounting software formats.
+
+**Parameters:**
+- `format` (string, required): 'quickbooks', 'xero', 'sage', or 'csv'
+- `dateFrom` (string, required): Start date
+- `dateTo` (string, required): End date
+- `includeRefunds` (boolean, optional): Include refunded payments
+
+#### calculate_taxes
+Calculate Brazilian taxes for payments.
+
+**Parameters:**
+- `amount` (number, required): Base amount
+- `region` (string, required): Brazilian state code
+- `productType` (string, optional): 'physical', 'digital', or 'service'
+
+#### schedule_payment_reminder
+Schedule payment reminders for customers.
+
+**Parameters:**
+- `customerId` (string, required): Customer ID
+- `amount` (number, required): Payment amount
+- `dueDate` (string, required): Due date
+- `reminderSchedule` (array, optional): Days before due date to send reminders
+
+#### retry_failed_payment
+Automatically retry a failed payment with smart strategies.
+
+**Parameters:**
+- `originalPaymentId` (string, required): Failed payment ID
+- `updateAmount` (boolean, optional): Allow amount adjustment
+- `useAlternativeMethod` (boolean, optional): Try alternative payment methods
 
 ## Usage Examples
 
@@ -389,14 +549,29 @@ For issues and questions:
 
 ## Roadmap
 
-- [ ] Add subscription management
-- [ ] Implement marketplace/split payments
-- [ ] Add QR code generation for in-person payments
-- [ ] Support for saved cards management
-- [ ] Batch payment processing
-- [ ] Advanced reporting tools
-- [ ] Multi-language support
-- [ ] Rate limiting and caching
+### ✅ Completed (v2.0 - v3.0)
+- [x] PIX payments with QR codes
+- [x] Subscription management
+- [x] Marketplace/split payments
+- [x] Saved cards management
+- [x] Batch payment processing
+- [x] Advanced reporting and analytics
+- [x] Fraud detection system
+- [x] Payment status monitoring
+- [x] Accounting software exports (QuickBooks, Xero, Sage)
+- [x] Brazilian tax calculations
+- [x] Payment retry automation
+- [x] Payment reminder scheduling
+
+### 🚧 Planned Features
+- [ ] Multi-language support (Portuguese, Spanish, English)
+- [ ] Rate limiting and caching optimization
+- [ ] Boleto bancário support
+- [ ] Advanced webhook management
+- [ ] Payment dispute handling
+- [ ] Multi-currency conversion
+- [ ] A/B testing for payment methods
+- [ ] Machine learning fraud detection
 
 ---
 
