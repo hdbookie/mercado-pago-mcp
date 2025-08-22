@@ -350,6 +350,128 @@ class MercadoPagoMCPServer {
           },
         },
         {
+          name: "monitor_payment_status",
+          description: "Monitor payment status changes in real-time",
+          inputSchema: {
+            type: "object",
+            properties: {
+              paymentId: { type: "string", description: "Payment ID to monitor" },
+              webhookUrl: { type: "string", description: "URL to send status updates" },
+              checkInterval: { type: "number", description: "Check interval in seconds", default: 30 },
+            },
+            required: ["paymentId"],
+          },
+        },
+        {
+          name: "retry_failed_payment",
+          description: "Automatically retry a failed payment with smart logic",
+          inputSchema: {
+            type: "object",
+            properties: {
+              paymentId: { type: "string", description: "Failed payment ID" },
+              maxRetries: { type: "number", description: "Maximum retry attempts", default: 3 },
+              retryStrategy: { 
+                type: "string", 
+                description: "Retry strategy",
+                enum: ["immediate", "exponential_backoff", "fixed_delay"],
+                default: "exponential_backoff"
+              },
+            },
+            required: ["paymentId"],
+          },
+        },
+        {
+          name: "get_analytics_dashboard",
+          description: "Get comprehensive payment analytics and metrics",
+          inputSchema: {
+            type: "object",
+            properties: {
+              period: { 
+                type: "string", 
+                description: "Analysis period",
+                enum: ["today", "week", "month", "quarter", "year"],
+                default: "month"
+              },
+              metrics: {
+                type: "array",
+                description: "Metrics to include",
+                items: {
+                  type: "string",
+                  enum: ["revenue", "transactions", "conversion_rate", "average_ticket", "top_customers", "payment_methods"]
+                },
+              },
+            },
+          },
+        },
+        {
+          name: "detect_fraud_risk",
+          description: "Analyze payment for fraud risk indicators",
+          inputSchema: {
+            type: "object",
+            properties: {
+              paymentId: { type: "string", description: "Payment ID to analyze" },
+              includeRecommendations: { type: "boolean", description: "Include action recommendations", default: true },
+            },
+            required: ["paymentId"],
+          },
+        },
+        {
+          name: "schedule_payment_reminder",
+          description: "Schedule automatic payment reminders",
+          inputSchema: {
+            type: "object",
+            properties: {
+              customerId: { type: "string", description: "Customer ID" },
+              amount: { type: "number", description: "Amount due" },
+              dueDate: { type: "string", description: "Payment due date (ISO format)" },
+              reminderSchedule: {
+                type: "array",
+                description: "Days before due date to send reminders",
+                items: { type: "number" },
+                default: [7, 3, 1]
+              },
+            },
+            required: ["customerId", "amount", "dueDate"],
+          },
+        },
+        {
+          name: "export_to_accounting",
+          description: "Export payment data to accounting software format",
+          inputSchema: {
+            type: "object",
+            properties: {
+              format: { 
+                type: "string", 
+                description: "Export format",
+                enum: ["quickbooks", "xero", "sage", "csv", "json"],
+                default: "csv"
+              },
+              dateFrom: { type: "string", description: "Start date (ISO format)" },
+              dateTo: { type: "string", description: "End date (ISO format)" },
+              includeRefunds: { type: "boolean", description: "Include refunds", default: true },
+            },
+            required: ["format", "dateFrom", "dateTo"],
+          },
+        },
+        {
+          name: "calculate_taxes",
+          description: "Calculate taxes for a payment based on region",
+          inputSchema: {
+            type: "object",
+            properties: {
+              amount: { type: "number", description: "Base amount" },
+              region: { type: "string", description: "Region/state code" },
+              productType: { 
+                type: "string", 
+                description: "Product type for tax calculation",
+                enum: ["physical", "digital", "service"],
+                default: "physical"
+              },
+            },
+            required: ["amount", "region"],
+          },
+        },
+        {
           name: "generate_reports",
           description: "Generate payment reports",
           inputSchema: {
@@ -431,6 +553,27 @@ class MercadoPagoMCPServer {
           
           case "batch_create_payments":
             return await this.batchCreatePayments(args);
+          
+          case "monitor_payment_status":
+            return await this.monitorPaymentStatus(args);
+          
+          case "retry_failed_payment":
+            return await this.retryFailedPayment(args);
+          
+          case "get_analytics_dashboard":
+            return await this.getAnalyticsDashboard(args);
+          
+          case "detect_fraud_risk":
+            return await this.detectFraudRisk(args);
+          
+          case "schedule_payment_reminder":
+            return await this.schedulePaymentReminder(args);
+          
+          case "export_to_accounting":
+            return await this.exportToAccounting(args);
+          
+          case "calculate_taxes":
+            return await this.calculateTaxes(args);
           
           case "generate_reports":
             return await this.generateReports(args);
@@ -1045,6 +1188,469 @@ class MercadoPagoMCPServer {
         {
           type: "text",
           text: JSON.stringify(report, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async monitorPaymentStatus(args: any) {
+    let previousStatus: string | null = null;
+    const changes: any[] = [];
+    const maxChecks = 20;
+    let checks = 0;
+
+    const checkStatus = async () => {
+      const payment = await this.paymentClient.get({ id: args.paymentId });
+      
+      if (payment.status !== previousStatus) {
+        changes.push({
+          timestamp: new Date().toISOString(),
+          oldStatus: previousStatus,
+          newStatus: payment.status,
+          amount: payment.transaction_amount,
+        });
+        previousStatus = payment.status || null;
+      }
+      
+      checks++;
+      
+      return {
+        currentStatus: payment.status,
+        isFinal: ['approved', 'rejected', 'cancelled', 'refunded'].includes(payment.status || ''),
+        changes,
+        checksPerformed: checks,
+      };
+    };
+
+    const result = await checkStatus();
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            paymentId: args.paymentId,
+            monitoring: result,
+            webhookUrl: args.webhookUrl || 'Not configured',
+            note: "In production, this would set up a background monitoring job",
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async retryFailedPayment(args: any) {
+    const payment = await this.paymentClient.get({ id: args.paymentId });
+    
+    if (payment.status === 'approved') {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              error: "Payment already approved",
+              paymentId: args.paymentId,
+              status: payment.status,
+            }, null, 2),
+          },
+        ],
+      };
+    }
+
+    const retryStrategy = args.retryStrategy || 'exponential_backoff';
+    const maxRetries = args.maxRetries || 3;
+    
+    const delays: { [key: string]: number[] } = {
+      immediate: [0, 0, 0],
+      fixed_delay: [5000, 5000, 5000],
+      exponential_backoff: [1000, 2000, 4000],
+    };
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            originalPayment: {
+              id: payment.id,
+              status: payment.status,
+              amount: payment.transaction_amount,
+            },
+            retryPlan: {
+              strategy: retryStrategy,
+              maxRetries,
+              delays: delays[retryStrategy],
+              willRetryAt: delays[retryStrategy].map((delay, i) => 
+                new Date(Date.now() + delay).toISOString()
+              ),
+            },
+            note: "In production, this would queue retry attempts",
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async getAnalyticsDashboard(args: any) {
+    const period = args.period || 'month';
+    const now = new Date();
+    let dateFrom = new Date();
+    
+    switch (period) {
+      case 'today':
+        dateFrom.setHours(0, 0, 0, 0);
+        break;
+      case 'week':
+        dateFrom.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        dateFrom.setMonth(now.getMonth() - 1);
+        break;
+      case 'quarter':
+        dateFrom.setMonth(now.getMonth() - 3);
+        break;
+      case 'year':
+        dateFrom.setFullYear(now.getFullYear() - 1);
+        break;
+    }
+
+    const payments = await this.paymentClient.search({
+      options: {
+        begin_date: dateFrom.toISOString(),
+        end_date: now.toISOString(),
+        limit: 100,
+      },
+    });
+
+    const data = payments.results || [];
+    const approved = data.filter((p: any) => p.status === 'approved');
+    const rejected = data.filter((p: any) => p.status === 'rejected');
+    
+    const paymentMethods: { [key: string]: number } = {};
+    const topCustomers: { [key: string]: number } = {};
+    
+    approved.forEach((p: any) => {
+      paymentMethods[p.payment_method_id] = (paymentMethods[p.payment_method_id] || 0) + 1;
+      const email = p.payer?.email;
+      if (email) {
+        topCustomers[email] = (topCustomers[email] || 0) + p.transaction_amount;
+      }
+    });
+
+    const analytics = {
+      period: {
+        type: period,
+        from: dateFrom.toISOString(),
+        to: now.toISOString(),
+      },
+      metrics: {
+        revenue: approved.reduce((sum, p) => sum + (p.transaction_amount || 0), 0),
+        totalTransactions: data.length,
+        approvedTransactions: approved.length,
+        rejectedTransactions: rejected.length,
+        conversionRate: data.length > 0 ? (approved.length / data.length) * 100 : 0,
+        averageTicket: approved.length > 0 ? 
+          approved.reduce((sum, p) => sum + (p.transaction_amount || 0), 0) / approved.length : 0,
+        paymentMethods: Object.entries(paymentMethods)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([method, count]) => ({ method, count, percentage: (count / approved.length) * 100 })),
+        topCustomers: Object.entries(topCustomers)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([email, total]) => ({ email, totalSpent: total })),
+      },
+      insights: {
+        bestDay: this.getBestDay(approved),
+        peakHour: this.getPeakHour(approved),
+        trend: this.getTrend(approved),
+      },
+    };
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(analytics, null, 2),
+        },
+      ],
+    };
+  }
+
+  private getBestDay(payments: any[]): string {
+    const days: { [key: string]: number } = {};
+    payments.forEach(p => {
+      const day = new Date(p.date_created).toLocaleDateString();
+      days[day] = (days[day] || 0) + p.transaction_amount;
+    });
+    const best = Object.entries(days).sort((a, b) => b[1] - a[1])[0];
+    return best ? best[0] : 'N/A';
+  }
+
+  private getPeakHour(payments: any[]): number {
+    const hours: { [key: number]: number } = {};
+    payments.forEach(p => {
+      const hour = new Date(p.date_created).getHours();
+      hours[hour] = (hours[hour] || 0) + 1;
+    });
+    const peak = Object.entries(hours).sort((a, b) => b[1] - a[1])[0];
+    return peak ? parseInt(peak[0]) : 0;
+  }
+
+  private getTrend(payments: any[]): string {
+    if (payments.length < 2) return 'insufficient_data';
+    
+    const firstHalf = payments.slice(0, Math.floor(payments.length / 2));
+    const secondHalf = payments.slice(Math.floor(payments.length / 2));
+    
+    const firstSum = firstHalf.reduce((sum, p) => sum + p.transaction_amount, 0);
+    const secondSum = secondHalf.reduce((sum, p) => sum + p.transaction_amount, 0);
+    
+    if (secondSum > firstSum * 1.1) return 'growing';
+    if (secondSum < firstSum * 0.9) return 'declining';
+    return 'stable';
+  }
+
+  private async detectFraudRisk(args: any) {
+    const payment = await this.paymentClient.get({ id: args.paymentId });
+    
+    const riskFactors = [];
+    let riskScore = 0;
+
+    // Check for high amount
+    if ((payment.transaction_amount || 0) > 5000) {
+      riskFactors.push('high_amount');
+      riskScore += 20;
+    }
+
+    // Check for new customer
+    if (!payment.payer?.id) {
+      riskFactors.push('new_customer');
+      riskScore += 15;
+    }
+
+    // Check for international transaction
+    if (payment.currency_id !== 'BRL') {
+      riskFactors.push('international');
+      riskScore += 10;
+    }
+
+    // Check payment method
+    if (payment.payment_method_id === 'account_money') {
+      riskFactors.push('digital_wallet');
+      riskScore += 5;
+    }
+
+    // Check for rapid transactions
+    const recentPayments = await this.paymentClient.search({
+      options: {
+        'payer.email': payment.payer?.email || '',
+        limit: 10,
+      },
+    });
+
+    if (recentPayments.results && recentPayments.results.length > 3) {
+      riskFactors.push('rapid_transactions');
+      riskScore += 25;
+    }
+
+    const riskLevel = 
+      riskScore >= 50 ? 'high' :
+      riskScore >= 30 ? 'medium' :
+      'low';
+
+    const recommendations = args.includeRecommendations ? {
+      high: ['manual_review', 'request_documentation', 'delay_fulfillment'],
+      medium: ['monitor_closely', 'verify_contact'],
+      low: ['proceed_normally'],
+    }[riskLevel] : [];
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            paymentId: args.paymentId,
+            riskAssessment: {
+              score: riskScore,
+              level: riskLevel,
+              factors: riskFactors,
+            },
+            paymentDetails: {
+              amount: payment.transaction_amount,
+              method: payment.payment_method_id,
+              payer: payment.payer?.email,
+              status: payment.status,
+            },
+            recommendations,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async schedulePaymentReminder(args: any) {
+    const dueDate = new Date(args.dueDate);
+    const reminderSchedule = args.reminderSchedule || [7, 3, 1];
+    
+    const reminders = reminderSchedule.map((daysBefore: number) => {
+      const reminderDate = new Date(dueDate);
+      reminderDate.setDate(reminderDate.getDate() - daysBefore);
+      
+      return {
+        sendDate: reminderDate.toISOString(),
+        daysBefore,
+        message: `Payment reminder: R$ ${args.amount} due on ${dueDate.toLocaleDateString()}`,
+        status: 'scheduled',
+      };
+    });
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            customerId: args.customerId,
+            amount: args.amount,
+            dueDate: args.dueDate,
+            reminders,
+            note: "In production, this would integrate with email/SMS service",
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async exportToAccounting(args: any) {
+    const payments = await this.paymentClient.search({
+      options: {
+        begin_date: args.dateFrom,
+        end_date: args.dateTo,
+        limit: 1000,
+      },
+    });
+
+    const data = payments.results || [];
+    
+    const formats: { [key: string]: any } = {
+      quickbooks: this.formatForQuickBooks(data, args.includeRefunds),
+      xero: this.formatForXero(data, args.includeRefunds),
+      sage: this.formatForSage(data, args.includeRefunds),
+      csv: this.convertToCSV(data),
+      json: data,
+    };
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: typeof formats[args.format] === 'string' 
+            ? formats[args.format]
+            : JSON.stringify(formats[args.format], null, 2),
+        },
+      ],
+    };
+  }
+
+  private formatForQuickBooks(data: any[], includeRefunds: boolean): any {
+    return {
+      format: 'QuickBooks Online',
+      transactions: data
+        .filter((p: any) => includeRefunds || p.status !== 'refunded')
+        .map((p: any) => ({
+          Date: new Date(p.date_created).toLocaleDateString(),
+          Type: p.status === 'refunded' ? 'Credit Memo' : 'Sales Receipt',
+          Num: p.id,
+          Name: p.payer?.email || 'Guest',
+          Memo: p.description,
+          Amount: p.transaction_amount,
+          PaymentMethod: p.payment_method_id,
+        })),
+    };
+  }
+
+  private formatForXero(data: any[], includeRefunds: boolean): any {
+    return {
+      format: 'Xero',
+      invoices: data
+        .filter((p: any) => includeRefunds || p.status !== 'refunded')
+        .map((p: any) => ({
+          InvoiceNumber: p.id,
+          Contact: p.payer?.email || 'Guest',
+          Date: new Date(p.date_created).toISOString(),
+          DueDate: new Date(p.date_created).toISOString(),
+          Total: p.transaction_amount,
+          Status: p.status === 'approved' ? 'PAID' : 'DRAFT',
+          Type: p.status === 'refunded' ? 'ACCRECCREDIT' : 'ACCREC',
+        })),
+    };
+  }
+
+  private formatForSage(data: any[], includeRefunds: boolean): any {
+    return {
+      format: 'Sage',
+      entries: data
+        .filter((p: any) => includeRefunds || p.status !== 'refunded')
+        .map((p: any) => ({
+          TransactionDate: new Date(p.date_created).toLocaleDateString(),
+          Reference: p.id,
+          CustomerName: p.payer?.email || 'Guest',
+          NetAmount: p.transaction_amount,
+          TaxAmount: 0,
+          GrossAmount: p.transaction_amount,
+          TransactionType: p.status === 'refunded' ? 'SC' : 'SI',
+        })),
+    };
+  }
+
+  private async calculateTaxes(args: any) {
+    // Brazilian tax rates by state (simplified)
+    const taxRates: { [key: string]: { [key: string]: number } } = {
+      'SP': { physical: 0.18, digital: 0.12, service: 0.05 },
+      'RJ': { physical: 0.20, digital: 0.12, service: 0.05 },
+      'MG': { physical: 0.18, digital: 0.12, service: 0.05 },
+      'RS': { physical: 0.17, digital: 0.12, service: 0.05 },
+      'PR': { physical: 0.18, digital: 0.12, service: 0.05 },
+      'SC': { physical: 0.17, digital: 0.12, service: 0.05 },
+      'BA': { physical: 0.18, digital: 0.12, service: 0.05 },
+      'PE': { physical: 0.18, digital: 0.12, service: 0.05 },
+      'CE': { physical: 0.18, digital: 0.12, service: 0.05 },
+      'DEFAULT': { physical: 0.17, digital: 0.12, service: 0.05 },
+    };
+
+    const region = (args.region || 'DEFAULT').toUpperCase();
+    const productType = args.productType || 'physical';
+    const rates = taxRates[region] || taxRates['DEFAULT'];
+    const taxRate = rates[productType];
+    
+    const taxAmount = args.amount * taxRate;
+    const totalAmount = args.amount + taxAmount;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            calculation: {
+              baseAmount: args.amount,
+              region: region,
+              productType: productType,
+              taxRate: taxRate,
+              taxAmount: taxAmount,
+              totalAmount: totalAmount,
+            },
+            breakdown: {
+              ICMS: args.amount * 0.12,  // Interstate tax
+              PIS: args.amount * 0.0165,  // Social contribution
+              COFINS: args.amount * 0.076, // Social security
+              ISS: productType === 'service' ? args.amount * 0.05 : 0,
+            },
+            formatted: {
+              base: `R$ ${args.amount.toFixed(2)}`,
+              tax: `R$ ${taxAmount.toFixed(2)}`,
+              total: `R$ ${totalAmount.toFixed(2)}`,
+            },
+          }, null, 2),
         },
       ],
     };
