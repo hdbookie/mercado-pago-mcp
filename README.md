@@ -2,6 +2,73 @@
 
 A comprehensive Model Context Protocol (MCP) server for Mercado Pago API integration. This server provides full payment processing capabilities, customer management, refunds, and more - going far beyond simple documentation search.
 
+## 🚀 Quick Install
+
+### Option 1: NPX (Easiest - Recommended)
+
+Simply use `npx` to run the server directly in your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "mercado-pago": {
+      "command": "npx",
+      "args": ["mercado-pago-mcp"],
+      "env": {
+        "MERCADOPAGO_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
+        "MERCADOPAGO_ENVIRONMENT": "sandbox"
+      }
+    }
+  }
+}
+```
+
+### Option 2: Global Install
+
+```bash
+npm install -g mercado-pago-mcp
+```
+
+Then in Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "mercado-pago": {
+      "command": "mercado-pago-mcp",
+      "env": {
+        "MERCADOPAGO_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
+        "MERCADOPAGO_ENVIRONMENT": "sandbox"
+      }
+    }
+  }
+}
+```
+
+### Option 3: Local Install
+
+```bash
+git clone https://github.com/hdbookie/mercado-pago-mcp.git
+cd mercado-pago-mcp
+npm install
+npm run build
+```
+
+Then in Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "mercado-pago": {
+      "command": "node",
+      "args": ["/path/to/mercado-pago-mcp/dist/index.js"],
+      "env": {
+        "MERCADOPAGO_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
+        "MERCADOPAGO_ENVIRONMENT": "sandbox"
+      }
+    }
+  }
+}
+```
+
 ## Features
 
 ### 🎯 Core Capabilities
@@ -30,53 +97,67 @@ A comprehensive Model Context Protocol (MCP) server for Mercado Pago API integra
   - Webhook simulation
   - Sandbox/Production environment support
 
-## Installation
+## ⚙️ Configuration
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/mercado-pago-mcp.git
-cd mercado-pago-mcp
-
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
-```
-
-## Configuration
-
-### 1. Get your Mercado Pago credentials
+### Step 1: Get Mercado Pago Credentials
 
 1. Go to [Mercado Pago Developers](https://www.mercadopago.com/developers)
 2. Create an application
-3. Get your Access Token (use sandbox token for testing)
+3. Get your Access Token:
+   - **For Testing**: Use the TEST token (starts with `TEST-`)
+   - **For Production**: Use the PRODUCTION token (starts with `APP_USR-`)
 
-### 2. Set environment variables
+### Step 2: Configure Claude Desktop
 
-```bash
-# For production
-export MERCADOPAGO_ACCESS_TOKEN="YOUR_PRODUCTION_ACCESS_TOKEN"
-export MERCADOPAGO_ENVIRONMENT="production"
+Open your Claude Desktop configuration file:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-# For testing (recommended to start)
-export MERCADOPAGO_ACCESS_TOKEN="YOUR_SANDBOX_ACCESS_TOKEN"
-export MERCADOPAGO_ENVIRONMENT="sandbox"
+Add the configuration from the Quick Install section above.
+
+### Step 3: Restart Claude Desktop
+
+After updating the configuration, restart Claude Desktop to load the MCP server.
+
+## 🔐 Environment Configuration
+
+### Staging/Sandbox (Recommended for Testing)
+```json
+{
+  "MERCADOPAGO_ACCESS_TOKEN": "TEST-your-sandbox-token",
+  "MERCADOPAGO_ENVIRONMENT": "sandbox"
+}
 ```
 
-### 3. Configure with Claude Desktop
+### Production
+```json
+{
+  "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-your-production-token",
+  "MERCADOPAGO_ENVIRONMENT": "production"
+}
+```
 
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+### Running Both Environments
+You can run both staging and production simultaneously:
 
 ```json
 {
   "mcpServers": {
-    "mercado-pago": {
-      "command": "node",
-      "args": ["/path/to/mercado-pago-mcp/dist/index.js"],
+    "mercado-pago-sandbox": {
+      "command": "npx",
+      "args": ["mercado-pago-mcp"],
       "env": {
-        "MERCADOPAGO_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
+        "MERCADOPAGO_ACCESS_TOKEN": "TEST-your-sandbox-token",
         "MERCADOPAGO_ENVIRONMENT": "sandbox"
+      }
+    },
+    "mercado-pago-production": {
+      "command": "npx",
+      "args": ["mercado-pago-mcp"],
+      "env": {
+        "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-your-production-token",
+        "MERCADOPAGO_ENVIRONMENT": "production"
       }
     }
   }
