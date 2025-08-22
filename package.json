@@ -1,0 +1,30 @@
+{
+  "name": "@your-org/mercado-pago-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Mercado Pago API integration - payments, customers, refunds and more",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "inspect": "node --inspect dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "mercadopago",
+    "payments",
+    "api"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "mercadopago": "^2.0.15",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
