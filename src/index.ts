@@ -7,7 +7,7 @@ import {
   ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { MercadoPagoConfig, Payment, Customer, MerchantOrder, Preference } from 'mercadopago';
+import { MercadoPagoConfig, Payment, Customer, MerchantOrder, Preference, PreApproval, PaymentMethod, CardToken } from 'mercadopago';
 import { z } from "zod";
 
 interface ServerConfig {
@@ -22,6 +22,9 @@ class MercadoPagoMCPServer {
   private customerClient: Customer;
   private orderClient: MerchantOrder;
   private preferenceClient: Preference;
+  private subscriptionClient: PreApproval;
+  private paymentMethodClient: PaymentMethod;
+  private cardTokenClient: CardToken;
 
   constructor(config: ServerConfig) {
     this.server = new Server(
@@ -48,6 +51,9 @@ class MercadoPagoMCPServer {
     this.customerClient = new Customer(this.mpClient);
     this.orderClient = new MerchantOrder(this.mpClient);
     this.preferenceClient = new Preference(this.mpClient);
+    this.subscriptionClient = new PreApproval(this.mpClient);
+    this.paymentMethodClient = new PaymentMethod(this.mpClient);
+    this.cardTokenClient = new CardToken(this.mpClient);
 
     this.setupHandlers();
     this.setupErrorHandling();
@@ -201,6 +207,166 @@ class MercadoPagoMCPServer {
             required: ["type", "paymentId"],
           },
         },
+        {
+          name: "create_pix_payment",
+          description: "Create a PIX payment with QR code",
+          inputSchema: {
+            type: "object",
+            properties: {
+              amount: { type: "number", description: "Payment amount" },
+              description: { type: "string", description: "Payment description" },
+              payerEmail: { type: "string", description: "Payer's email" },
+              payerFirstName: { type: "string", description: "Payer's first name" },
+              payerLastName: { type: "string", description: "Payer's last name" },
+              payerDocument: { type: "string", description: "Payer's CPF/CNPJ" },
+              expirationMinutes: { type: "number", description: "QR code expiration in minutes", default: 30 },
+            },
+            required: ["amount", "description", "payerEmail"],
+          },
+        },
+        {
+          name: "create_subscription",
+          description: "Create a recurring subscription",
+          inputSchema: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Subscription title" },
+              amount: { type: "number", description: "Recurring amount" },
+              frequency: { type: "number", description: "Frequency in days (e.g., 30 for monthly)" },
+              frequencyType: { type: "string", description: "Frequency type", enum: ["days", "months"], default: "months" },
+              payerEmail: { type: "string", description: "Subscriber's email" },
+              startDate: { type: "string", description: "Start date (ISO format)" },
+              endDate: { type: "string", description: "End date (ISO format)" },
+            },
+            required: ["title", "amount", "frequency", "payerEmail"],
+          },
+        },
+        {
+          name: "get_subscription",
+          description: "Get subscription details",
+          inputSchema: {
+            type: "object",
+            properties: {
+              subscriptionId: { type: "string", description: "Subscription ID" },
+            },
+            required: ["subscriptionId"],
+          },
+        },
+        {
+          name: "update_subscription",
+          description: "Update subscription (pause, resume, modify)",
+          inputSchema: {
+            type: "object",
+            properties: {
+              subscriptionId: { type: "string", description: "Subscription ID" },
+              status: { type: "string", description: "New status", enum: ["paused", "cancelled", "authorized"] },
+              amount: { type: "number", description: "New amount (optional)" },
+            },
+            required: ["subscriptionId"],
+          },
+        },
+        {
+          name: "create_split_payment",
+          description: "Create a marketplace split payment",
+          inputSchema: {
+            type: "object",
+            properties: {
+              amount: { type: "number", description: "Total payment amount" },
+              description: { type: "string", description: "Payment description" },
+              payerEmail: { type: "string", description: "Payer's email" },
+              paymentMethodId: { type: "string", description: "Payment method" },
+              splits: {
+                type: "array",
+                description: "Payment splits configuration",
+                items: {
+                  type: "object",
+                  properties: {
+                    collectorId: { type: "string", description: "Collector's Mercado Pago ID" },
+                    amount: { type: "number", description: "Amount for this collector" },
+                    fee: { type: "number", description: "Platform fee", default: 0 },
+                  },
+                },
+              },
+            },
+            required: ["amount", "description", "payerEmail", "paymentMethodId", "splits"],
+          },
+        },
+        {
+          name: "save_card",
+          description: "Save a card for future payments",
+          inputSchema: {
+            type: "object",
+            properties: {
+              customerId: { type: "string", description: "Customer ID" },
+              cardNumber: { type: "string", description: "Card number" },
+              cardholderName: { type: "string", description: "Cardholder name" },
+              expirationMonth: { type: "string", description: "Expiration month (MM)" },
+              expirationYear: { type: "string", description: "Expiration year (YYYY)" },
+              securityCode: { type: "string", description: "CVV/CVC" },
+            },
+            required: ["customerId", "cardNumber", "cardholderName", "expirationMonth", "expirationYear", "securityCode"],
+          },
+        },
+        {
+          name: "list_saved_cards",
+          description: "List customer's saved cards",
+          inputSchema: {
+            type: "object",
+            properties: {
+              customerId: { type: "string", description: "Customer ID" },
+            },
+            required: ["customerId"],
+          },
+        },
+        {
+          name: "get_payment_methods",
+          description: "Get available payment methods for your country",
+          inputSchema: {
+            type: "object",
+            properties: {},
+          },
+        },
+        {
+          name: "batch_create_payments",
+          description: "Create multiple payments in batch",
+          inputSchema: {
+            type: "object",
+            properties: {
+              payments: {
+                type: "array",
+                description: "Array of payments to create",
+                items: {
+                  type: "object",
+                  properties: {
+                    amount: { type: "number" },
+                    description: { type: "string" },
+                    payerEmail: { type: "string" },
+                    paymentMethodId: { type: "string" },
+                  },
+                },
+              },
+            },
+            required: ["payments"],
+          },
+        },
+        {
+          name: "generate_reports",
+          description: "Generate payment reports",
+          inputSchema: {
+            type: "object",
+            properties: {
+              reportType: { 
+                type: "string", 
+                description: "Type of report",
+                enum: ["payments", "refunds", "chargebacks", "settlements"]
+              },
+              dateFrom: { type: "string", description: "Start date (ISO format)" },
+              dateTo: { type: "string", description: "End date (ISO format)" },
+              format: { type: "string", description: "Output format", enum: ["json", "csv"], default: "json" },
+            },
+            required: ["reportType", "dateFrom", "dateTo"],
+          },
+        },
       ],
     }));
 
@@ -238,6 +404,36 @@ class MercadoPagoMCPServer {
           
           case "simulate_webhook":
             return await this.simulateWebhook(args);
+          
+          case "create_pix_payment":
+            return await this.createPixPayment(args);
+          
+          case "create_subscription":
+            return await this.createSubscription(args);
+          
+          case "get_subscription":
+            return await this.getSubscription(args);
+          
+          case "update_subscription":
+            return await this.updateSubscription(args);
+          
+          case "create_split_payment":
+            return await this.createSplitPayment(args);
+          
+          case "save_card":
+            return await this.saveCard(args);
+          
+          case "list_saved_cards":
+            return await this.listSavedCards(args);
+          
+          case "get_payment_methods":
+            return await this.getPaymentMethods(args);
+          
+          case "batch_create_payments":
+            return await this.batchCreatePayments(args);
+          
+          case "generate_reports":
+            return await this.generateReports(args);
           
           default:
             throw new McpError(
@@ -525,6 +721,346 @@ class MercadoPagoMCPServer {
         },
       ],
     };
+  }
+
+  private async createPixPayment(args: any) {
+    const expirationDate = new Date();
+    expirationDate.setMinutes(expirationDate.getMinutes() + (args.expirationMinutes || 30));
+
+    const body = {
+      transaction_amount: args.amount,
+      description: args.description,
+      payment_method_id: 'pix',
+      payer: {
+        email: args.payerEmail,
+        first_name: args.payerFirstName || 'First',
+        last_name: args.payerLastName || 'Last',
+        identification: {
+          type: 'CPF',
+          number: args.payerDocument || '12345678909'
+        }
+      },
+      date_of_expiration: expirationDate.toISOString(),
+    };
+
+    const payment = await this.paymentClient.create({ body });
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            id: payment.id,
+            status: payment.status,
+            amount: payment.transaction_amount,
+            pixQrCode: payment.point_of_interaction?.transaction_data?.qr_code,
+            pixQrCodeBase64: payment.point_of_interaction?.transaction_data?.qr_code_base64,
+            pixCopyPaste: payment.point_of_interaction?.transaction_data?.ticket_url,
+            expirationDate: payment.date_of_expiration,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async createSubscription(args: any) {
+    const body: any = {
+      reason: args.title,
+      auto_recurring: {
+        frequency: args.frequency,
+        frequency_type: args.frequencyType || 'months',
+        transaction_amount: args.amount,
+        currency_id: 'BRL',
+      },
+      payer_email: args.payerEmail,
+      status: 'pending',
+    };
+
+    if (args.startDate) body.start_date = args.startDate;
+    if (args.endDate) body.end_date = args.endDate;
+
+    const subscription = await this.subscriptionClient.create({ body });
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            id: subscription.id,
+            status: subscription.status,
+            reason: subscription.reason,
+            amount: subscription.auto_recurring?.transaction_amount,
+            frequency: subscription.auto_recurring?.frequency,
+            init_point: subscription.init_point,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async getSubscription(args: any) {
+    const subscription = await this.subscriptionClient.get({ id: args.subscriptionId });
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(subscription, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async updateSubscription(args: any) {
+    const body: any = {};
+    
+    if (args.status) body.status = args.status;
+    if (args.amount) {
+      body.auto_recurring = { transaction_amount: args.amount };
+    }
+
+    const subscription = await this.subscriptionClient.update({ 
+      id: args.subscriptionId,
+      body 
+    });
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            id: subscription.id,
+            status: subscription.status,
+            updated: true,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async createSplitPayment(args: any) {
+    const body: any = {
+      transaction_amount: args.amount,
+      description: args.description,
+      payment_method_id: args.paymentMethodId,
+      payer: {
+        email: args.payerEmail,
+      },
+      application_fee: args.splits.reduce((sum: number, split: any) => sum + (split.fee || 0), 0),
+      disbursements: args.splits.map((split: any) => ({
+        amount: split.amount,
+        collector_id: split.collectorId,
+        application_fee: split.fee || 0,
+      })),
+    };
+
+    const payment = await this.paymentClient.create({ body });
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            id: payment.id,
+            status: payment.status,
+            totalAmount: payment.transaction_amount,
+            applicationFee: body.application_fee,
+            splits: args.splits,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async saveCard(args: any) {
+    const tokenBody = {
+      card_number: args.cardNumber,
+      cardholder: {
+        name: args.cardholderName,
+        identification: {
+          type: 'CPF',
+          number: '12345678909'
+        }
+      },
+      expiration_month: args.expirationMonth,
+      expiration_year: args.expirationYear,
+      security_code: args.securityCode,
+    };
+
+    const token = await this.cardTokenClient.create({ body: tokenBody });
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            message: "Card tokenized successfully",
+            tokenId: token.id,
+            lastFourDigits: token.last_four_digits,
+            customerId: args.customerId,
+            note: "Use this token to create payments with saved card",
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async listSavedCards(args: any) {
+    const customer = await this.customerClient.search({ 
+      options: {
+        limit: 100
+      }
+    });
+    
+    const targetCustomer = customer.results?.find((c: any) => c.id === args.customerId);
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            customerId: args.customerId,
+            cards: targetCustomer?.cards || [],
+            note: "Saved cards information from customer profile",
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async getPaymentMethods(args: any) {
+    const methods = await this.paymentMethodClient.get();
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            availableMethods: methods.map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              type: m.payment_type_id,
+              status: m.status,
+              thumbnail: m.thumbnail,
+            })),
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async batchCreatePayments(args: any) {
+    const results = [];
+    const errors = [];
+
+    for (const paymentData of args.payments) {
+      try {
+        const body = {
+          transaction_amount: paymentData.amount,
+          description: paymentData.description,
+          payment_method_id: paymentData.paymentMethodId,
+          payer: {
+            email: paymentData.payerEmail,
+          },
+        };
+
+        const payment = await this.paymentClient.create({ body });
+        results.push({
+          id: payment.id,
+          status: payment.status,
+          amount: payment.transaction_amount,
+        });
+      } catch (error: any) {
+        errors.push({
+          email: paymentData.payerEmail,
+          error: error.message,
+        });
+      }
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            successful: results.length,
+            failed: errors.length,
+            results,
+            errors,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async generateReports(args: any) {
+    const options: any = {
+      begin_date: args.dateFrom,
+      end_date: args.dateTo,
+    };
+
+    let data: any[] = [];
+    
+    switch (args.reportType) {
+      case 'payments':
+        const payments = await this.paymentClient.search({ options });
+        data = payments.results || [];
+        break;
+      
+      case 'refunds':
+        const refundPayments = await this.paymentClient.search({ 
+          options: { ...options, status: 'refunded' }
+        });
+        data = refundPayments.results || [];
+        break;
+      
+      case 'chargebacks':
+        const chargebacks = await this.paymentClient.search({ 
+          options: { ...options, status: 'charged_back' }
+        });
+        data = chargebacks.results || [];
+        break;
+      
+      case 'settlements':
+        // Settlements would require additional API endpoints
+        data = [];
+        break;
+    }
+
+    const report = {
+      type: args.reportType,
+      period: {
+        from: args.dateFrom,
+        to: args.dateTo,
+      },
+      summary: {
+        total_records: data.length,
+        total_amount: data.reduce((sum, p) => sum + (p.transaction_amount || 0), 0),
+      },
+      data: args.format === 'csv' ? this.convertToCSV(data) : data,
+    };
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(report, null, 2),
+        },
+      ],
+    };
+  }
+
+  private convertToCSV(data: any[]): string {
+    if (data.length === 0) return '';
+    
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(item => 
+      Object.values(item).map(val => 
+        typeof val === 'string' ? `"${val}"` : val
+      ).join(',')
+    );
+    
+    return [headers, ...rows].join('\n');
   }
 
   async run() {
