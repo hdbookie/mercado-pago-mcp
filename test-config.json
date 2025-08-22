@@ -1,0 +1,10 @@
+{
+  "mercado-pago-local": {
+    "command": "node",
+    "args": ["/Users/hunter/mercado-pago-mcp/dist/index.js"],
+    "env": {
+      "MERCADOPAGO_ACCESS_TOKEN": "TEST-7459189100162064-082214-0707c74ddfbf4670bc0fe83b53a9e16d-1106955105",
+      "MERCADOPAGO_ENVIRONMENT": "sandbox"
+    }
+  }
+}
